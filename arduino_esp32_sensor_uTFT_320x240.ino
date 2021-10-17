@@ -14,6 +14,7 @@
   #########################################################################
 */
 // Include the libraries we need
+#include <stdio.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <ArduinoJson.h>
@@ -52,7 +53,7 @@ DallasTemperature sensors(&oneWire);
 
 #define TFT_GREY 0x7BEF
 
-TFT_eSPI myGLCD = TFT_eSPI(320,240);       // Invoke custom library
+TFT_eSPI myGLCD = TFT_eSPI(320, 240);      // Invoke custom library
 
 const long interval_send_ble  = 20;     //7:new smartphone 20:old smartphone millis OK
 const long interval_poll_ble  = 1000;   //1000 millis OK
@@ -61,7 +62,9 @@ int delay_wait = 2000;
 
 String string_texte = "                         ";
 float float_temperature = 0;
-float yy=0;
+float yy = 0;
+
+int i = 0, j = 0, k = 0;
 
 unsigned long runTime = 0;
 
@@ -72,6 +75,9 @@ static long currentMillis_tof = 0;
 static long currentMillis_pressure = 0;
 static long millis_measure_cycles = 0;
 static long millis_measure_cycles_old = 0;
+
+char ble_frame[128];
+int size_ble = 0;
 
 String input_json = "{\"Freq\":250 ,\"AccRange\":2  ,\"GyrRange\":250 }          ";
 String output     = "{\"Freq\":250 ,\"AccRange\":2  ,\"GyrRange\":250 }          ";
@@ -106,6 +112,8 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 };
 
 
+//function declaration
+void ble_send(void);
 
 void setup()
 {
@@ -122,7 +130,7 @@ void setup()
 
   //BLE init
   // Create the BLE Device
-  BLEDevice::init("UART Service");
+  BLEDevice::init("Sensors NGL");
 
   // Create the BLE Server
   pServer = BLEDevice::createServer();
@@ -133,16 +141,16 @@ void setup()
 
   // Create a BLE Characteristic
   pTxCharacteristic = pService->createCharacteristic(
-                    CHARACTERISTIC_UUID_TX,
-                    BLECharacteristic::PROPERTY_NOTIFY
-                  );
-                      
+                        CHARACTERISTIC_UUID_TX,
+                        BLECharacteristic::PROPERTY_NOTIFY
+                      );
+
   pTxCharacteristic->addDescriptor(new BLE2902());
 
   BLECharacteristic * pRxCharacteristic = pService->createCharacteristic(
-                       CHARACTERISTIC_UUID_RX,
-                      BLECharacteristic::PROPERTY_WRITE
-                    );
+      CHARACTERISTIC_UUID_RX,
+      BLECharacteristic::PROPERTY_WRITE
+                                          );
 
   pRxCharacteristic->setCallbacks(new MyCallbacks());
 
@@ -151,36 +159,13 @@ void setup()
 
   // Start advertising
   pServer->getAdvertising()->start();
-  Serial.println("Waiting a client connection to notify...");
+  Serial.println("Waiting BLE client connection to send data");
 }
+
+
 
 void loop()
 {
-  //BLE
-  //**********************************
-      if (deviceConnected) {
-        pTxCharacteristic->setValue(&txValue, 1);
-        pTxCharacteristic->notify();
-        txValue++;
-    delay(10); // bluetooth stack will go into congestion, if too many packets are sent
-  }
-
-    // disconnecting
-    if (!deviceConnected && oldDeviceConnected) {
-        delay(500); // give the bluetooth stack the chance to get things ready
-        pServer->startAdvertising(); // restart advertising
-        Serial.println("start advertising");
-        oldDeviceConnected = deviceConnected;
-    }
-    // connecting
-    if (deviceConnected && !oldDeviceConnected) {
-    // do stuff here on connecting
-        oldDeviceConnected = deviceConnected;
-    }
-
-
-
-
   //update screen
   //**********************************
   randomSeed(millis());
@@ -249,7 +234,7 @@ void loop()
   //for (int i=1; i<(317*20); i++)
   while (1)
   {
-      delay(10);
+    delay(10);
     x++;
     if (x == 318)
     {
@@ -275,7 +260,7 @@ void loop()
 
     //dummy for test
     yy++;
-    float_temperature = random(5, 10)+30*sin(yy*3.14/180);
+    float_temperature = random(5, 10) + 30 * sin(yy * 3.14 / 180);
     Serial.println(float_temperature);
     //plage 240
     y = (119 - float_temperature * 2);
@@ -292,6 +277,11 @@ void loop()
     myGLCD.drawString("T: ", 10, 20, 2);
     myGLCD.drawString(String(float_temperature, 2) + "       ", 30, 20, 2);
     //myGLCD.drawNumber(float_temperature, 20, 70,2);
+
+    //BLE
+    //**********************************
+    ble_send();
+
   }
 
   delay(delay_wait);
@@ -514,4 +504,31 @@ void loop()
   myGLCD.setTextDatum(TC_DATUM);
   myGLCD.drawNumber(runTime, 160, 225, 2);
   delay (5000);
+}
+
+
+void ble_send(void)
+{
+  if (deviceConnected) {
+
+    sprintf(ble_frame, "%d\n", (int)float_temperature);
+    pTxCharacteristic->setValue(ble_frame);
+    pTxCharacteristic->notify();
+    txValue++;
+    delay(10); // bluetooth stack will go into congestion, if too many packets are sent
+  }
+
+  // disconnecting
+  if (!deviceConnected && oldDeviceConnected) {
+    delay(500); // give the bluetooth stack the chance to get things ready
+    pServer->startAdvertising(); // restart advertising
+    Serial.println("start advertising");
+    oldDeviceConnected = deviceConnected;
+  }
+  // connecting
+  if (deviceConnected && !oldDeviceConnected) {
+    // do stuff here on connecting
+    oldDeviceConnected = deviceConnected;
+  }
+
 }
