@@ -156,6 +156,33 @@ void setup()
 
 void loop()
 {
+  //BLE
+  //**********************************
+      if (deviceConnected) {
+        pTxCharacteristic->setValue(&txValue, 1);
+        pTxCharacteristic->notify();
+        txValue++;
+    delay(10); // bluetooth stack will go into congestion, if too many packets are sent
+  }
+
+    // disconnecting
+    if (!deviceConnected && oldDeviceConnected) {
+        delay(500); // give the bluetooth stack the chance to get things ready
+        pServer->startAdvertising(); // restart advertising
+        Serial.println("start advertising");
+        oldDeviceConnected = deviceConnected;
+    }
+    // connecting
+    if (deviceConnected && !oldDeviceConnected) {
+    // do stuff here on connecting
+        oldDeviceConnected = deviceConnected;
+    }
+
+
+
+
+  //update screen
+  //**********************************
   randomSeed(millis());
   //randomSeed(1234); // This ensure test is repeatable with exact same draws each loop
   int buf[318];
@@ -243,7 +270,7 @@ void loop()
     //y sensor DS18B20 maxim temperature onewire
     sensors.requestTemperatures(); // Send the command to get temperatures
     //Serial.print("Temperature for the device 1 (index 0) is: ");
-    Serial.print("Temperature:");
+    //Serial.print("Temperature:");
     float_temperature = sensors.getTempCByIndex(0);
 
     //dummy for test
